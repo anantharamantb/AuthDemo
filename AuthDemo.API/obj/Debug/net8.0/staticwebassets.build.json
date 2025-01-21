@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "cTa4tHEhnjJLM+MwIPiEt/U80z731Vusg4MKB64qD5Q=",
+  "Source": "AuthDemo.API",
+  "BasePath": "_content/AuthDemo.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
