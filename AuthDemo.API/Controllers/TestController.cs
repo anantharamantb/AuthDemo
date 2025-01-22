@@ -12,7 +12,7 @@ namespace AuthDemo.API.Controllers
         [Authorize(Roles = "Admin")]
         public string Get()
         {
-            return "Hello from TestController";
+            return "Hello from the TestController";
         }   
     }
 }
