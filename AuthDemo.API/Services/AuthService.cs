@@ -4,16 +4,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace AuthDemo.API.Services
 {
     public class AuthService : IAuthService
     {
-        private readonly UserManager<IdentityUser> _userManager;
+        private readonly UserManager<ExtendedIdentityUser> _userManager;
         private readonly IConfiguration _configuration;
 
-        public AuthService(UserManager<IdentityUser> userManager, IConfiguration configuration)
+        public AuthService(UserManager<ExtendedIdentityUser> userManager, IConfiguration configuration)
         {
             _userManager = userManager;
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -21,7 +22,7 @@ namespace AuthDemo.API.Services
 
         public async Task<IdentityResult> Register(LoginUser user)
         {
-            var identityUser = new IdentityUser
+            var identityUser = new ExtendedIdentityUser
             {
                 UserName = user.UserName,
                 Email = user.UserName
@@ -38,12 +39,41 @@ namespace AuthDemo.API.Services
                 return response;
             }
             response.IsLoggedIn = true;
-            response.JwtToken = GenerateTokenString(user);
+            response.JwtToken = GenerateTokenString(user.UserName);
+            response.RefreshToken = GenerateRefreshTokenString();
+
+            identityUser.RefreshToken = response.RefreshToken;
+            identityUser.RefreshTokenExpiry = DateTime.Now.AddHours(12);
+            await _userManager.UpdateAsync(identityUser);
 
             return response;
         }
 
-        public string GenerateTokenString(LoginUser user)
+        public async Task<IdentityResult?> DeleteUser(string userEmail)
+        {
+            var identityUser = await _userManager.FindByEmailAsync(userEmail);
+            if(identityUser is null)
+            {
+                return null;
+            }
+
+            return await _userManager.DeleteAsync(identityUser);
+
+        }
+
+        private string GenerateRefreshTokenString()
+        {
+            var randomNomber = new byte[64];
+
+            using (var numberGenerator = RandomNumberGenerator.Create())
+            {
+                numberGenerator.GetBytes(randomNomber);
+            }
+
+            return Convert.ToBase64String(randomNomber);
+        }
+
+        public string GenerateTokenString(string userName)
         {
             var key = _configuration["Jwt:Key"];
             if (string.IsNullOrEmpty(key))
@@ -53,14 +83,14 @@ namespace AuthDemo.API.Services
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Email, user.UserName),
+                new Claim(ClaimTypes.Email, userName),
                 new Claim(ClaimTypes.Role, "Admin")
             };
 
             var signingCred = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)), SecurityAlgorithms.HmacSha512);
             SecurityToken securityToken = new JwtSecurityToken(
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(60),
+                expires: DateTime.Now.AddSeconds(60),
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 signingCredentials: signingCred
@@ -68,6 +98,54 @@ namespace AuthDemo.API.Services
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(securityToken);
             return tokenString;
+        }
+
+        public async Task<LoginResponse> RefreshToken(RefreshTokenModel model)
+        {
+            var response = new LoginResponse();
+
+            var principal = GetTokenPrincipal(model.JwtToken);
+            var emailClaim = principal?.FindFirst(ClaimTypes.Email);
+            var email = emailClaim?.Value;
+
+            if (email == null)
+            {
+                return response;
+            }
+
+            var identityUser = await _userManager.FindByEmailAsync(email);
+
+            if(identityUser is null || identityUser.RefreshToken != model.RefreshToken || identityUser.RefreshTokenExpiry < DateTime.Now)
+            {
+                return response;
+            }
+
+            response.IsLoggedIn = true;
+            response.JwtToken = GenerateTokenString(identityUser.UserName ?? string.Empty);
+            response.RefreshToken = GenerateRefreshTokenString();
+
+            identityUser.RefreshToken = response.RefreshToken;
+            identityUser.RefreshTokenExpiry = DateTime.Now.AddHours(12);
+            await _userManager.UpdateAsync(identityUser);
+
+            return response;
+        }
+
+        private ClaimsPrincipal? GetTokenPrincipal(object token)
+        {
+            var principal = new JwtSecurityTokenHandler().ValidateToken(token.ToString(), new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"])),
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                RequireExpirationTime = true,
+                ValidIssuer = _configuration["Jwt:Issuer"],
+                ValidAudience = _configuration["Jwt:Audience"]
+            }, out var validatedToken);
+
+            return principal;
         }
     }
 }

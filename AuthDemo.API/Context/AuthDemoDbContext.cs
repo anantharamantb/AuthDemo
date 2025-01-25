@@ -11,6 +11,8 @@ namespace AuthDemo.API.Context
             
         }
 
+        public DbSet<ExtendedIdentityUser> ExtendedIdentityUsers { get; set; }
+
         public DbSet<Employee>? Employees { get; set; }
     }
 }

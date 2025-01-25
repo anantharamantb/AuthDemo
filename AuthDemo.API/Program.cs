@@ -1,4 +1,5 @@
 using AuthDemo.API.Context;
+using AuthDemo.API.Models;
 using AuthDemo.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -19,7 +20,7 @@ builder.Services.AddDbContext<AuthDemoDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AuthDemo"));
 });
 
-builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
+builder.Services.AddIdentity<ExtendedIdentityUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = false;
     options.Password.RequiredLength = 6;

@@ -33,12 +33,33 @@ namespace AuthDemo.API.Controllers
             }
         }
 
+        [HttpDelete]
+        public async Task<ActionResult> DeleteUser(string userEmail)
+        {
+            await _authService.DeleteUser(userEmail);
+
+            return NoContent();
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginUser user)
         {
             var loginResult = await _authService.Login(user);
 
             if(loginResult.IsLoggedIn)
+            {
+                return Ok(loginResult);
+            }
+
+            return Unauthorized();
+        }
+
+        [HttpPost("refreshtoken")]
+        public async Task<IActionResult> RefreshToken(RefreshTokenModel model)
+        {
+            var loginResult = await _authService.RefreshToken(model);
+
+            if (loginResult.IsLoggedIn)
             {
                 return Ok(loginResult);
             }
